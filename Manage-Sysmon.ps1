@@ -1,6 +1,6 @@
-Function Install-Sysmon {
 #requires -version 4.0
 #requires -runasadministrator
+function Install-Sysmon {
     <#
 
     .SYNOPSIS
@@ -15,7 +15,7 @@ Function Install-Sysmon {
 
     This should be the path to the Sysmon configuration file to install.
 
-    .PARAMETER sysmonlocation
+    .PARAMETER sysmonpath
 
     This is an optional path to the Sysmon.exe file (default is to use the current folder).
 
@@ -41,32 +41,15 @@ Function Install-Sysmon {
     ,
     [ValidateScript({Test-Path $_ -PathType 'Leaf' })]
     [string]
-    $sysmonlocation
+    $sysmonpath
     )
     
     # Debug: dump the variables we got passed.
-    Write-Verbose "Sysmon path: $($sysmonlocation)"
+    Write-Verbose "Sysmon path: $($sysmonpath)"
     Write-Verbose "Config path: $($config)"
 
-    # If a sysmon.exe location wasn't passed via a parameter, lets assume it exists in the current directory for now.
-   
-    Write-Verbose "test is: $test"
-    if(!(Test-Path variable:global:sysmonlocation)) {
-        Write-Verbose "No Sysmonlocation passed, detecting via current directory"
-        $currentpath = Get-AbsolutePath
-        $sysmonlocation = $currentpath + "\sysmon.exe"
-        Write-Verbose "Sysmonlocation now set to: $sysmonlocation"
-    }
-    # Now we definately have a path to sysmon.exe (either provided or assumed), lets try and verify sysmon.exe actually exists.
-    try {
-        Write-Verbose "Testing if we can find sysmon.exe at $sysmonlocation"
-        $null = Test-Path $sysmonlocation -Include 'sysmon.exe'
-    }
-    catch {
-        Write-Verbose "Contents of sysmonlocation are: $sysmonlocation"
-        Write-Error "Unable to find sysmon.exe, verify it is in the same folder as this script or the path is passed via -sysmonlocation"
-    }
-    
+    # Lets figure out what the likely path to sysmon.exe is.
+    $sysmonpath = Get-SysmonPath $sysmonpath  
 
     # We know $config is a valid file thanks to parameter validation, now lets quickly test if it is an xml file.
     Write-Verbose "Testing if the given config file is xml"
@@ -95,12 +78,22 @@ Function Install-Sysmon {
 
     # Install sysmon
     $sysmoninstallcmd = "-i $config -accepteula"
-    Write-Verbose "Install command: $sysmonlocation $sysmoninstallcmd"
-    Start-Process $sysmonlocation -ArgumentList $sysmoninstallcmd -Wait -WindowStyle Hidden
+    Write-Verbose "Install command: $sysmonpath $sysmoninstallcmd"
+    Start-Process $sysmonpath -ArgumentList $sysmoninstallcmd -Wait -WindowStyle Hidden
 }
 
-Function Get-AbsolutePath {
+function Get-AbsolutePath {
+    <#
 
+    .SYNOPSIS
+
+    Gets the path to where the script is executing from.
+
+    .DESCRIPTION
+
+    This will return the full path to where the script is executing from.
+
+    #>
     [CmdletBinding()]
     Param(
         [parameter(
@@ -116,4 +109,43 @@ Function Get-AbsolutePath {
         Write-Error -Message "'$relativePath' is not a valid path" -ErrorId 1 -ErrorAction Stop
     }
 
+}
+
+function Get-SysmonPath {
+    <#
+
+    .SYNOPSIS
+
+    Returns the path to sysmon.exe
+
+    .DESCRIPTION
+
+    Takes an input and attempts to validate if sysmon.exe is present, if the input is null it tries to find sysmon.exe in the current folder.
+
+    #>
+    Param(
+        [parameter(
+            Mandatory=$false,
+            ValueFromPipeline=$true
+        )]
+        [String]$sysmon
+    )
+
+    # If a sysmon.exe location wasn't passed via a parameter, lets assume it exists in the current directory for now.
+    if(!(Test-Path variable:global:sysmon)) {
+        Write-Verbose "No sysmonpath passed, detecting via current directory"
+        $currentpath = Get-AbsolutePath
+        $sysmon = $currentpath + "\sysmon.exe"
+        Write-Verbose "sysmon now set to: $sysmon"
+    }
+    # Now we definately have a path to sysmon.exe (either provided or assumed), lets try and verify sysmon.exe actually exists.
+    try {
+        Write-Verbose "Testing if we can find sysmon.exe at $sysmon"
+        $null = Test-Path $sysmon -Include 'sysmon.exe'
+    }
+    catch {
+        Write-Verbose "Contents of sysmonpath are: $sysmonpath"
+        Write-Error "Unable to find sysmon.exe, verify it is in the same folder as this script or the path is passed via -sysmonpath"
+    }
+    return $sysmon
 }
